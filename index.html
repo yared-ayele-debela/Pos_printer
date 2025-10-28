@@ -2,38 +2,67 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Connect Phone via Bluetooth</title>
+  <title>Bluetooth Connect with Service</title>
 </head>
 <body>
-  <h2>Bluetooth Connection Test</h2>
+  <h2>Bluetooth Phone Connection</h2>
   <button id="connectBtn">Connect to Phone</button>
   <pre id="log"></pre>
 
   <script>
-    const log = msg => {
+    const log = (msg) => {
       document.getElementById('log').textContent += msg + '\n';
     };
 
     async function connectPhone() {
       try {
-        log('Requesting Bluetooth device...');
-        // You can filter for your custom app/service
+        log('🔍 Scanning for Bluetooth devices...');
+
+        // Request BLE device with optional RSSI filter
         const device = await navigator.bluetooth.requestDevice({
-          acceptAllDevices: true, // or use filters for your app
-          optionalServices: ['battery_service'] // example GATT service
+          acceptAllDevices: true, // or use filters
+          optionalServices: ['battery_service'] // replace with your service UUID
         });
 
-        log(`Connecting to ${device.name}...`);
+        log(`Device selected: ${device.name}`);
+
+        // Connect to GATT server
         const server = await device.gatt.connect();
+        log('✅ Connected to device');
 
-        log('Connected!');
-        log('Getting services...');
-        // const services = await server.getPrimaryServices();
-        // services.forEach(s => log('Service UUID: ' + s.uuid));
+        // Get the primary service you want
+        const serviceUUID = 'battery_service'; // replace with your custom service UUID
+        const service = await server.getPrimaryService(serviceUUID);
+        log(`Service obtained: ${service.uuid}`);
 
-        // You can now read/write characteristics of services your app exposes
+        // Example: get characteristics of the service
+        const characteristics = await service.getCharacteristics();
+        for (const char of characteristics) {
+          log(`Characteristic: ${char.uuid} | Writable: ${char.properties.write}`);
+        }
+
+        // Example: write data to a writable characteristic
+        const writableChar = characteristics.find(c => c.properties.write);
+        if (writableChar) {
+          const encoder = new TextEncoder();
+          await writableChar.writeValue(encoder.encode('Hello from Web Bluetooth!'));
+          log('✅ Data sent to device!');
+        }
+
+        // Optionally: subscribe to notifications
+        const notifyChar = characteristics.find(c => c.properties.notify);
+        if (notifyChar) {
+          await notifyChar.startNotifications();
+          notifyChar.addEventListener('characteristicvaluechanged', (event) => {
+            const value = event.target.value;
+            const decoder = new TextDecoder();
+            log('📩 Received: ' + decoder.decode(value));
+          });
+          log('✅ Notifications enabled!');
+        }
+
       } catch (err) {
-        log('Error: ' + err);
+        log('⚠️ Error: ' + err);
       }
     }
 
